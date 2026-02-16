@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material 3 Color Tokens -->
+    <color name="md_theme_light_primary">#0066CC</color>
+    <color name="md_theme_light_onPrimary">#FFFFFF</color>
+    <color name="md_theme_light_primaryContainer">#D7E3FF</color>
+    <color name="md_theme_light_onPrimaryContainer">#001B3E</color>
+    <color name="md_theme_light_secondary">#555F71</color>
+    <color name="md_theme_light_onSecondary">#FFFFFF</color>
+    <color name="md_theme_light_secondaryContainer">#D9E3F8</color>
+    <color name="md_theme_light_onSecondaryContainer">#12202B</color>
+    <color name="md_theme_light_background">#FDFCFF</color>
+    <color name="md_theme_light_onBackground">#1A1C1E</color>
+    <color name="md_theme_light_surface">#FDFCFF</color>
+    <color name="md_theme_light_onSurface">#1A1C1E</color>
+    <color name="md_theme_light_error">#BA1A1A</color>
+    <color name="md_theme_light_onError">#FFFFFF</color>
+
+    <color name="md_theme_dark_primary">#AAC7FF</color>
+    <color name="md_theme_dark_onPrimary">#003063</color>
+    <color name="md_theme_dark_primaryContainer">#004A8A</color>
+    <color name="md_theme_dark_onPrimaryContainer">#D7E3FF</color>
+    <color name="md_theme_dark_secondary">#BDC7DC</color>
+    <color name="md_theme_dark_onSecondary">#283141</color>
+    <color name="md_theme_dark_secondaryContainer">#3E4758</color>
+    <color name="md_theme_dark_onSecondaryContainer">#D9E3F8</color>
+    <color name="md_theme_dark_background">#1A1C1E</color>
+    <color name="md_theme_dark_onBackground">#E2E2E6</color>
+    <color name="md_theme_dark_surface">#1A1C1E</color>
+    <color name="md_theme_dark_onSurface">#E2E2E6</color>
+    <color name="md_theme_dark_error">#FFB4AB</color>
+    <color name="md_theme_dark_onError">#690005</color>
+
+    <!-- Custom colors -->
+    <color name="progress_watched">#4CAF50</color>
+    <color name="progress_unwatched">#E0E0E0</color>
+    <color name="player_controls_background">#80000000</color>
+    <color name="telegram_blue">#0088CC</color>
+</resources>
