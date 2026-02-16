@@ -93,7 +93,7 @@ dependencies {
     kapt("com.google.dagger:hilt-compiler:2.50")
     
     // Telegram TDLib (using TDLight for better Kotlin support)
-    implementation("it.tdlight:tdlight-java:3.0.3+td.1.8.21")
+    implementation(project(":tdlight-stubs"))
     
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
