@@ -1,6 +1,7 @@
 package com.telegram.videoplayer.data.remote.telegram
 
 import android.content.Context
+import com.telegram.videoplayer.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import it.tdlight.client.APIToken
 import it.tdlight.client.AuthenticationSupplier
@@ -24,9 +25,10 @@ class TelegramClient @Inject constructor(
     private var client: SimpleTelegramClient? = null
     private var isInitialized = false
     
-    // TODO: Replace with your actual API credentials from https://my.telegram.org
-    private val API_ID = 0 // Replace with actual API ID
-    private val API_HASH = "YOUR_API_HASH" // Replace with actual API hash
+    // API credentials from BuildConfig (set via environment variables or gradle.properties)
+    // Get your credentials from https://my.telegram.org
+    private val API_ID = BuildConfig.TELEGRAM_API_ID
+    private val API_HASH = BuildConfig.TELEGRAM_API_HASH
     
     suspend fun initialize(phoneNumber: String): Flow<AuthState> = callbackFlow {
         try {

@@ -15,9 +15,16 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // Telegram API credentials from environment or build config
+        val apiId = System.getenv("TELEGRAM_API_ID") ?: "0"
+        val apiHash = System.getenv("TELEGRAM_API_HASH") ?: "YOUR_API_HASH"
+        
+        buildConfigField("int", "TELEGRAM_API_ID", apiId)
+        buildConfigField("String", "TELEGRAM_API_HASH", "\"$apiHash\"")
         
         // Room schema export
         ksp {
@@ -46,6 +53,7 @@ android {
     
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
