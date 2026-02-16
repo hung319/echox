@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "TelegramVideoPlayer"
-include(":app")
+include(":app", ":tdlight-stubs")
