@@ -20,6 +20,13 @@ jobs:
 
       - name: Validate Gradle Wrapper
         run: |
+          echo "Current directory: $(pwd)"
+          echo "Listing workspace:"
+          ls -la
+          echo ""
+          echo "Listing gradle/wrapper/:"
+          ls -la gradle/wrapper/ || echo "Directory not found!"
+          echo ""
           if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
             echo "❌ Error: gradle/wrapper/gradle-wrapper.jar is missing!"
             echo "Please run: gradle wrapper --gradle-version 8.4"
