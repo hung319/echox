@@ -33,7 +33,7 @@ jobs:
             echo "Please run: gradle wrapper --gradle-version 8.4"
             exit 1
           fi
-          echo "✅ Gradle wrapper JAR found ($(stat -c%s gradle/wrapper/gradle-wrapper.jar) bytes)"
+          echo "✅ Gradle wrapper JAR found"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
