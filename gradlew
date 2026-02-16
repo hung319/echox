@@ -5,7 +5,12 @@
 ##############################################################################
 
 # Attempt to set APP_HOME
-APP_HOME=$( cd "${0%/*}/.." && pwd )
+# Resolve script path (handle both absolute and relative invocation)
+case "$0" in
+  /*) SCRIPT_PATH="$0" ;;
+  *) SCRIPT_PATH="$(pwd)/$0" ;;
+esac
+APP_HOME="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 
 # Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
