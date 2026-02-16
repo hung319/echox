@@ -252,7 +252,7 @@ Add steps to workflow:
 Change `retention-days`:
 
 ```yaml
-- uses: actions/upload-artifact@v3
+- uses: actions/upload-artifact@v4
   with:
     retention-days: 60  # Keep for 60 days
 ```

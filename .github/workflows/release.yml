@@ -51,7 +51,7 @@ jobs:
           sdkmanager "ndk;25.2.9519653" || true
           
       - name: Cache Gradle packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -121,7 +121,7 @@ jobs:
         continue-on-error: true
         
       - name: Upload Release APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: |
@@ -130,7 +130,7 @@ jobs:
           retention-days: 90
           
       - name: Upload Debug APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: debug-apk
           path: app/build/outputs/apk/debug/*.apk
