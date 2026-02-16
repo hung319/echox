@@ -1,0 +1,270 @@
+name: Release Build
+
+on:
+  release:
+    types: [created, published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+      create_release:
+        description: 'Create GitHub Release'
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  build-release:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+          
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+        
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
+        
+      - name: Install required SDK components
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager "ndk;25.2.9519653" || true
+          
+      - name: Cache Gradle packages
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+          
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        continue-on-error: true
+        
+      - name: Get APK Info
+        id: apk_info
+        run: |
+          VERSION_NAME=$(grep "versionName" app/build.gradle.kts | awk '{print $3}' | tr -d '"' || echo "1.0.0")
+          VERSION_CODE=$(grep "versionCode" app/build.gradle.kts | awk '{print $3}' || echo "1")
+          
+          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            RELEASE_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+            RELEASE_SIZE=$(du -h "$RELEASE_APK" | cut -f1)
+          else
+            RELEASE_APK=""
+            RELEASE_SIZE="N/A"
+          fi
+          
+          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
+            DEBUG_SIZE=$(du -h "$DEBUG_APK" | cut -f1)
+          else
+            DEBUG_APK=""
+            DEBUG_SIZE="N/A"
+          fi
+          
+          echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          echo "release_size=$RELEASE_SIZE" >> $GITHUB_OUTPUT
+          echo "debug_size=$DEBUG_SIZE" >> $GITHUB_OUTPUT
+          
+      - name: Rename APKs
+        run: |
+          VERSION="${{ steps.apk_info.outputs.version }}"
+          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            mv app/build/outputs/apk/release/app-release-unsigned.apk \
+               app/build/outputs/apk/release/telegram-video-player-v${VERSION}-release.apk
+          fi
+          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            mv app/build/outputs/apk/debug/app-debug.apk \
+               app/build/outputs/apk/debug/telegram-video-player-v${VERSION}-debug.apk
+          fi
+          
+      - name: Generate Checksums
+        run: |
+          cd app/build/outputs/apk/release
+          if ls *.apk 1> /dev/null 2>&1; then
+            sha256sum *.apk > checksums.txt
+          fi
+          cd ../debug
+          if ls *.apk 1> /dev/null 2>&1; then
+            sha256sum *.apk >> ../../release/checksums.txt || true
+          fi
+        continue-on-error: true
+        
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-apk
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/release/checksums.txt
+          retention-days: 90
+          
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+        continue-on-error: true
+        
+      - name: Create Release Notes
+        id: release_notes
+        run: |
+          cat > RELEASE_NOTES.md << 'EOF'
+          # 📱 Telegram Video Player - Release ${{ steps.apk_info.outputs.version }}
+          
+          ## 🎉 Release Information
+          
+          - **Version:** ${{ steps.apk_info.outputs.version }}
+          - **Version Code:** ${{ steps.apk_info.outputs.version_code }}
+          - **Release Date:** $(date +'%Y-%m-%d')
+          - **Build SHA:** ${{ github.sha }}
+          
+          ## 📦 Downloads
+          
+          ### Release APK (Recommended)
+          - **File:** `telegram-video-player-v${{ steps.apk_info.outputs.version }}-release.apk`
+          - **Size:** ${{ steps.apk_info.outputs.release_size }}
+          - **Type:** Unsigned release build
+          - **Use:** Production use
+          
+          ### Debug APK (For Testing)
+          - **File:** `telegram-video-player-v${{ steps.apk_info.outputs.version }}-debug.apk`
+          - **Size:** ${{ steps.apk_info.outputs.debug_size }}
+          - **Type:** Debug build with logging
+          - **Use:** Development and debugging
+          
+          ## ✨ Features
+          
+          - ✅ **Telegram Authentication** - Secure login with phone verification
+          - ✅ **Channel Browser** - Browse your Telegram channels in grid layout
+          - ✅ **Video Player** - ExoPlayer with MKV format support
+          - ✅ **Progress Tracking** - Auto-save playback position every 5 seconds
+          - ✅ **Resume Playback** - Continue watching from where you left off
+          - ✅ **Video Search** - Search videos by title and caption
+          - ✅ **Material Design 3** - Modern Android UI
+          
+          ## 📋 Requirements
+          
+          - **Android Version:** 7.0 (Nougat) or higher (API 24+)
+          - **Internet Connection:** Required
+          - **Telegram Account:** Required
+          - **Storage:** ~50MB minimum
+          
+          ## 🚀 Installation
+          
+          1. Download the APK file
+          2. Enable "Install from Unknown Sources" in your device settings
+          3. Open the downloaded APK file
+          4. Follow the installation prompts
+          
+          ## ⚙️ First Time Setup
+          
+          **IMPORTANT:** Before using the app, you need Telegram API credentials:
+          
+          1. Visit https://my.telegram.org
+          2. Log in with your phone number
+          3. Go to "API Development Tools"
+          4. Create a new application
+          5. Copy your `API_ID` and `API_HASH`
+          6. Note: You'll need to rebuild the app with these credentials
+          
+          ## 🔒 Security Notes
+          
+          - This is an **unsigned APK** - you may see security warnings during installation
+          - The app requires internet permission to connect to Telegram
+          - Your Telegram credentials are stored securely using Android Keystore
+          - No data is collected or sent to third parties
+          
+          ## 📖 Documentation
+          
+          - **README.md** - Full project documentation
+          - **SETUP_REQUIRED.md** - Configuration guide
+          - **IMPLEMENTATION_SUMMARY.md** - Technical details
+          
+          ## 🐛 Known Issues
+          
+          - APK is unsigned (signing requires keystore configuration)
+          - API credentials must be configured before build
+          - Background playback may have limitations on some devices
+          
+          ## 🔄 What's Changed
+          
+          ${{ github.event.head_commit.message || 'See commit history for details' }}
+          
+          ## 💬 Support
+          
+          - Report issues on GitHub
+          - Check documentation for troubleshooting
+          - Read SETUP_REQUIRED.md for configuration help
+          
+          ## 📜 License
+          
+          This project is provided as-is for educational purposes.
+          
+          ---
+          
+          **Built with:** Kotlin, Android Jetpack, ExoPlayer, Hilt, Room, TDLight
+          **Architecture:** Clean Architecture + MVVM
+          EOF
+          cat RELEASE_NOTES.md
+          
+      - name: Create GitHub Release
+        if: github.event.inputs.create_release == 'true' || github.event_name == 'release'
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ steps.apk_info.outputs.version }}
+          name: Release v${{ steps.apk_info.outputs.version }}
+          bodyFile: RELEASE_NOTES.md
+          artifacts: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/release/checksums.txt
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: false
+          allowUpdates: true
+          
+      - name: Update Latest Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: latest
+          name: Latest Release
+          bodyFile: RELEASE_NOTES.md
+          artifacts: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/checksums.txt
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          removeArtifacts: true
+          replacesArtifacts: true

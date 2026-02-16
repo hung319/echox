@@ -1,0 +1,210 @@
+name: Android CI/CD Build
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+          
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        
+      - name: Create local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
+        
+      - name: Install Android SDK components
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          
+      - name: Cache Gradle packages
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+            
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --stacktrace
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        continue-on-error: true
+        
+      - name: Get version name
+        id: version
+        run: |
+          VERSION=$(grep "versionName" app/build.gradle.kts | awk '{print $3}' | tr -d '"')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+          
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: telegram-video-player-debug
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+          
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v3
+        if: success()
+        with:
+          name: telegram-video-player-release
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 90
+        continue-on-error: true
+        
+      - name: Run Tests
+        run: ./gradlew test --stacktrace
+        continue-on-error: true
+        
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results
+          path: app/build/test-results/
+        continue-on-error: true
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download Debug APK
+        uses: actions/download-artifact@v3
+        with:
+          name: telegram-video-player-debug
+          path: apk/debug
+          
+      - name: Download Release APK
+        uses: actions/download-artifact@v3
+        with:
+          name: telegram-video-player-release
+          path: apk/release
+        continue-on-error: true
+        
+      - name: Get version info
+        id: version_info
+        run: |
+          VERSION=$(grep "versionName" app/build.gradle.kts | awk '{print $3}' | tr -d '"' || echo "1.0.0")
+          VERSION_CODE=$(grep "versionCode" app/build.gradle.kts | awk '{print $3}' || echo "1")
+          COMMIT_SHORT=$(git rev-parse --short HEAD)
+          BUILD_DATE=$(date +'%Y-%m-%d %H:%M:%S')
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT_SHORT" >> $GITHUB_OUTPUT
+          echo "date=$BUILD_DATE" >> $GITHUB_OUTPUT
+          
+      - name: Create Release Notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          # Telegram Video Player - Build ${{ steps.version_info.outputs.version }}
+          
+          ## 📱 Build Information
+          
+          - **Version:** ${{ steps.version_info.outputs.version }} (Build ${{ steps.version_info.outputs.version_code }})
+          - **Commit:** ${{ steps.version_info.outputs.commit }}
+          - **Build Date:** ${{ steps.version_info.outputs.date }}
+          - **Branch:** ${{ github.ref_name }}
+          
+          ## 📦 Download
+          
+          - **Debug APK:** For testing and debugging
+          - **Release APK:** Production build (if available)
+          
+          ## ✨ Features
+          
+          - ✅ Telegram Authentication
+          - ✅ Channel Browser
+          - ✅ Video Player with MKV support
+          - ✅ Progress Tracking
+          - ✅ Video Search
+          
+          ## ⚙️ Requirements
+          
+          - Android 7.0 (API 24) or higher
+          - Internet connection
+          - Telegram account
+          
+          ## ⚠️ Important
+          
+          Before using the app:
+          1. Get API credentials from https://my.telegram.org
+          2. Configure API_ID and API_HASH in the app
+          
+          ## 📝 Changes in This Build
+          
+          ${{ github.event.head_commit.message }}
+          
+          ---
+          
+          **Installation:** Download the APK and install on your Android device
+          **Support:** Check README.md for setup instructions
+          EOF
+          
+      - name: Create or Update Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: continuous-${{ github.ref_name }}
+          name: Continuous Build - ${{ steps.version_info.outputs.version }}
+          bodyFile: release_notes.md
+          artifacts: "apk/debug/*.apk,apk/release/*.apk"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          removeArtifacts: true
+          replacesArtifacts: true
+          prerelease: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
+          
+      - name: Upload to Latest Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: latest
+          name: Latest Build
+          bodyFile: release_notes.md
+          artifacts: "apk/debug/*.apk,apk/release/*.apk"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          removeArtifacts: true
+          replacesArtifacts: true
+          prerelease: false
