@@ -7,8 +7,12 @@ import dagger.hilt.android.HiltAndroidApp
 class TelegramVideoPlayerApp : Application() {
     
     override fun onCreate() {
+        // Initialize crash handler FIRST before anything else
+        CrashHandler.init(this)
+        
         super.onCreate()
-        // Initialize TDLib native library
-        System.loadLibrary("tdjni")
+        
+        // Note: Removed System.loadLibrary("tdjni") - tdlight-stubs is Java-only
+        // Native library is not needed for the stub implementation
     }
 }

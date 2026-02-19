@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Telegram Video Player</string>
+    <string name="app_name">echox</string>
     
     <!-- Auth -->
     <string name="phone_number_hint">Phone Number</string>
@@ -33,4 +33,12 @@
     <string name="error_network">Network error. Please check your connection.</string>
     <string name="error_auth">Authentication failed</string>
     <string name="error_unknown">An error occurred</string>
+    
+    <!-- Crash Dialog -->
+    <string name="crash_title">Application Error</string>
+    <string name="crash_message">An unexpected error occurred. Please copy the log below and report it.</string>
+    <string name="crash_copy">Copy</string>
+    <string name="crash_close">Close</string>
+    <string name="crash_restart">Restart</string>
+    <string name="crash_copied">Error log copied to clipboard</string>
 </resources>
