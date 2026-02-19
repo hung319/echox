@@ -6,6 +6,7 @@ import android.view.Menu
 import android.view.MenuItem
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -47,6 +48,9 @@ class MainActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Enable edge-to-edge
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         
         // Check authentication
         if (!authRepository.isAuthenticated()) {
@@ -136,23 +140,23 @@ class MainActivity : AppCompatActivity() {
     
     private fun showLogoutDialog() {
         MaterialAlertDialogBuilder(this)
-            .setTitle("Logout")
-            .setMessage("Are you sure you want to logout?")
-            .setPositiveButton("Logout") { _, _ ->
+            .setTitle(R.string.logout)
+            .setMessage("Bạn có chắc muốn đăng xuất?")
+            .setPositiveButton(R.string.logout) { _, _ ->
                 lifecycleScope.launch {
                     authRepository.logout()
                     navigateToAuth()
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
     
     private fun showError(message: String) {
         MaterialAlertDialogBuilder(this)
-            .setTitle("Error")
+            .setTitle(R.string.error_unknown)
             .setMessage(message)
-            .setPositiveButton("OK", null)
+            .setPositiveButton(android.R.string.ok, null)
             .show()
     }
     

@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
 import com.google.android.material.button.MaterialButton
 import com.telegram.videoplayer.CrashHandler
 import com.telegram.videoplayer.R
@@ -17,6 +18,10 @@ class CrashDialogActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Enable edge-to-edge
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        
         setContentView(R.layout.activity_crash_dialog)
         
         // Get crash log from intent or saved prefs
@@ -63,6 +68,7 @@ class CrashDialogActivity : AppCompatActivity() {
         finishAffinity()
     }
     
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         // Prevent back, must use buttons
     }
