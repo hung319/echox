@@ -29,8 +29,6 @@ class TelegramClient @Inject constructor(
     private var client: SimpleTelegramClient? = null
     private var isInitialized = false
     
-    // API credentials from BuildConfig (set via environment variables or gradle.properties)
-    // Get your credentials from https://my.telegram.org
     private val API_ID = BuildConfig.TELEGRAM_API_ID
     private val API_HASH = BuildConfig.TELEGRAM_API_HASH
     
@@ -38,29 +36,20 @@ class TelegramClient @Inject constructor(
         try {
             Log.d(TAG, "Initializing Telegram client for phone: $phoneNumber")
             
-            // Validate API credentials
             if (API_ID == 0 || API_HASH == "YOUR_API_HASH" || API_HASH.isBlank()) {
-                Log.e(TAG, "Invalid Telegram API credentials")
                 return@withContext Result.failure(Exception("Telegram API credentials not configured"))
             }
             
-            // Create TDLib settings
             val apiToken = APIToken(API_ID, API_HASH)
             val settings = TDLibSettings.create(apiToken)
             
-            // Set database directory
             val dbDir = File(context.filesDir, "tdlib").apply { mkdirs() }
             settings.databaseDirectoryPath = dbDir.toPath()
             
-            // Set downloads directory  
             val downloadsDir = File(context.cacheDir, "downloads").apply { mkdirs() }
             settings.downloadedFilesDirectoryPath = downloadsDir.toPath()
             
-            Log.d(TAG, "Database path: ${dbDir.absolutePath}")
-            
-            // Create auth supplier
-            val authSupplier = AuthenticationSupplier { clientId ->
-                Log.d(TAG, "Auth supplier called for clientId: $clientId")
+            val authSupplier = AuthenticationSupplier {
                 TdApi.PhoneNumberAuthenticationSettings().apply {
                     allowFlashCall = false
                     isCurrentPhoneNumber = false
@@ -68,16 +57,11 @@ class TelegramClient @Inject constructor(
                 }
             }
             
-            // Create and start client
             client = SimpleTelegramClient(settings)
             client?.start(authSupplier)
-            
             isInitialized = true
-            Log.d(TAG, "Telegram client initialized successfully")
             Result.success(Unit)
-            
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize Telegram client", e)
             isInitialized = false
             client = null
             Result.failure(e)
@@ -85,73 +69,128 @@ class TelegramClient @Inject constructor(
     }
     
     suspend fun sendCode(phoneNumber: String): Result<Unit> {
-        Log.d(TAG, "sendCode called with: $phoneNumber")
-        
-        // Initialize client if not already (outside of suspendCancellableCoroutine)
         if (client == null || !isInitialized) {
-            Log.d(TAG, "Client not initialized, initializing first...")
             val initResult = doInitialize(phoneNumber)
-            if (initResult.isFailure) {
-                return initResult
-            }
+            if (initResult.isFailure) return initResult
         }
         
         return suspendCancellableCoroutine { continuation ->
             try {
                 val formattedPhone = formatPhoneNumber(phoneNumber)
-                Log.d(TAG, "Formatted phone: $formattedPhone")
-                
                 client?.send(TdApi.SetAuthenticationPhoneNumber(formattedPhone, null)) { result ->
-                    Log.d(TAG, "sendCode result: $result")
                     when (result) {
-                        is TdApi.Ok -> {
-                            Log.d(TAG, "sendCode success")
-                            continuation.resume(Result.success(Unit))
-                        }
-                        is TdApi.Error -> {
-                            Log.e(TAG, "sendCode error: ${result.message}")
-                            continuation.resume(Result.failure(Exception(result.message)))
-                        }
-                        else -> {
-                            continuation.resume(Result.failure(Exception("Unexpected result")))
-                        }
+                        is TdApi.Ok -> continuation.resume(Result.success(Unit))
+                        is TdApi.Error -> continuation.resume(Result.failure(Exception(result.message)))
+                        else -> continuation.resume(Result.failure(Exception("Unexpected result")))
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "sendCode exception", e)
                 continuation.resumeWithException(e)
             }
         }
     }
     
     suspend fun checkCode(code: String): Result<Unit> {
-        Log.d(TAG, "checkCode called with: $code")
-        
-        if (client == null) {
-            Log.e(TAG, "Client not initialized")
-            return Result.failure(Exception("Client not initialized"))
-        }
+        if (client == null) return Result.failure(Exception("Client not initialized"))
         
         return suspendCancellableCoroutine { continuation ->
             try {
                 client?.send(TdApi.CheckAuthenticationCode(code)) { result ->
-                    Log.d(TAG, "checkCode result: $result")
                     when (result) {
-                        is TdApi.Ok -> {
-                            Log.d(TAG, "checkCode success")
-                            continuation.resume(Result.success(Unit))
-                        }
-                        is TdApi.Error -> {
-                            Log.e(TAG, "checkCode error: ${result.message}")
-                            continuation.resume(Result.failure(Exception(result.message)))
-                        }
-                        else -> {
-                            continuation.resume(Result.failure(Exception("Unexpected result")))
-                        }
+                        is TdApi.Ok -> continuation.resume(Result.success(Unit))
+                        is TdApi.Error -> continuation.resume(Result.failure(Exception(result.message)))
+                        else -> continuation.resume(Result.failure(Exception("Unexpected result")))
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "checkCode exception", e)
+                continuation.resumeWithException(e)
+            }
+        }
+    }
+    
+    suspend fun getMe(): TdApi.User {
+        if (client == null) throw Exception("Client not initialized")
+        
+        return suspendCancellableCoroutine { continuation ->
+            try {
+                client?.send(TdApi.GetMe()) { result ->
+                    when (result) {
+                        is TdApi.User -> continuation.resume(result)
+                        is TdApi.Error -> continuation.resumeWithException(Exception(result.message))
+                        else -> continuation.resumeWithException(Exception("Unexpected result"))
+                    }
+                }
+            } catch (e: Exception) {
+                continuation.resumeWithException(e)
+            }
+        }
+    }
+    
+    suspend fun getChats(): List<TdApi.Chat> {
+        if (client == null) return emptyList()
+        
+        return suspendCancellableCoroutine { continuation ->
+            try {
+                val chats = mutableListOf<TdApi.Chat>()
+                client?.send(TdApi.GetChats(TdApi.ChatListMain(), 100)) { result ->
+                    when (result) {
+                        is TdApi.Chats -> {
+                            result.chatIds.forEach { chatId ->
+                                client?.send(TdApi.GetChat(chatId)) { chatResult ->
+                                    if (chatResult is TdApi.Chat) {
+                                        chats.add(chatResult)
+                                    }
+                                }
+                            }
+                            continuation.resume(chats)
+                        }
+                        is TdApi.Error -> continuation.resumeWithException(Exception(result.message))
+                        else -> continuation.resumeWithException(Exception("Unexpected result"))
+                    }
+                }
+            } catch (e: Exception) {
+                continuation.resumeWithException(e)
+            }
+        }
+    }
+    
+    suspend fun getChatHistory(chatId: Long, limit: Int = 100): List<TdApi.Message> {
+        if (client == null) return emptyList()
+        
+        return suspendCancellableCoroutine { continuation ->
+            try {
+                client?.send(TdApi.GetChatHistory(chatId, 0, 0, limit, false)) { result ->
+                    when (result) {
+                        is TdApi.Messages -> continuation.resume(result.messages.toList())
+                        is TdApi.Error -> continuation.resumeWithException(Exception(result.message))
+                        else -> continuation.resumeWithException(Exception("Unexpected result"))
+                    }
+                }
+            } catch (e: Exception) {
+                continuation.resumeWithException(e)
+            }
+        }
+    }
+    
+    suspend fun downloadFile(fileId: Int): String {
+        if (client == null) throw Exception("Client not initialized")
+        
+        return suspendCancellableCoroutine { continuation ->
+            try {
+                client?.send(TdApi.DownloadFile(fileId, 32, 0, 0, true)) { result ->
+                    when (result) {
+                        is TdApi.File -> {
+                            if (result.local.isDownloadingCompleted) {
+                                continuation.resume(result.local.path)
+                            } else {
+                                continuation.resumeWithException(Exception("Download not completed"))
+                            }
+                        }
+                        is TdApi.Error -> continuation.resumeWithException(Exception(result.message))
+                        else -> continuation.resumeWithException(Exception("Unexpected result"))
+                    }
+                }
+            } catch (e: Exception) {
                 continuation.resumeWithException(e)
             }
         }
@@ -167,15 +206,11 @@ class TelegramClient @Inject constructor(
         }
     }
     
-    fun isAuthenticated(): Boolean {
-        return isInitialized && client != null
-    }
+    fun isAuthenticated(): Boolean = isInitialized && client != null
     
     private fun formatPhoneNumber(phone: String): String {
         var formatted = phone.replace(Regex("[^0-9+]"), "")
-        if (!formatted.startsWith("+")) {
-            formatted = "+$formatted"
-        }
+        if (!formatted.startsWith("+")) formatted = "+$formatted"
         return formatted
     }
 }
